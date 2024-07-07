@@ -43,19 +43,9 @@ class CacheAspect(
                 return@runCoroutine cached
             }
 
-            joinPoint.proceedCoroutine().let { rtn ->
-                if (rtn is Mono<*>) {
-                    // for spring 6.1.0 and later
-                    rtn.awaitSingleOrNull()?.let { result ->
-                        coroutineCache.put(cacheKey, result)
-                        return@runCoroutine result
-                    }
-                } else {
-                    rtn?.let {
-                        coroutineCache.put(cacheKey, rtn)
-                        return@runCoroutine rtn
-                    }
-                }
+            joinPoint.proceedCoroutine()?.let { rtn ->
+                coroutineCache.put(cacheKey, rtn)
+                return@runCoroutine rtn
             }
         }
     }
@@ -75,15 +65,8 @@ class CacheAspect(
             return cached
         }
 
-        return joinPoint.proceed().let { rtn ->
-            if (KotlinDetector.isKotlinReflectPresent() && KotlinDetector.isSuspendingFunction(method)) {
-                return@let (rtn as Mono<*>).map { result ->
-                    cache.put(cacheKey, result)
-                    result
-                }
-            }
-
-            rtn?.let {
+        return joinPoint.runCoroutine {
+            joinPoint.proceedCoroutine()?.let { rtn ->
                 cache.put(cacheKey, rtn)
                 rtn
             }
